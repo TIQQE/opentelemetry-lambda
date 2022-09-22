@@ -15,6 +15,7 @@
 package lambdacomponents
 
 import (
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/groupbytraceprocessor"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/loggingexporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
@@ -60,6 +61,7 @@ func Components() (component.Factories, error) {
 		probabilisticsamplerprocessor.NewFactory(),
 		resourceprocessor.NewFactory(),
 		spanprocessor.NewFactory(),
+		groupbytraceprocessor.NewFactory(),
 	)
 	if err != nil {
 		errs = append(errs, err)
