@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/collector/exporter/loggingexporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
+	"go.opentelemetry.io/collector/processor/batchprocessor"
 	"go.opentelemetry.io/collector/processor/memorylimiterprocessor"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.uber.org/multierr"
@@ -55,13 +56,14 @@ func Components() (component.Factories, error) {
 	}
 
 	processors, err := component.MakeProcessorFactoryMap(
-		attributesprocessor.NewFactory(),
+		spanprocessor.NewFactory(),
+		batchprocessor.NewFactory(),
 		filterprocessor.NewFactory(),
+		resourceprocessor.NewFactory(),
+		attributesprocessor.NewFactory(),
+		groupbytraceprocessor.NewFactory(),
 		memorylimiterprocessor.NewFactory(),
 		probabilisticsamplerprocessor.NewFactory(),
-		resourceprocessor.NewFactory(),
-		spanprocessor.NewFactory(),
-		groupbytraceprocessor.NewFactory(),
 	)
 	if err != nil {
 		errs = append(errs, err)

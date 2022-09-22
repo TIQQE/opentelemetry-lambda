@@ -1076,6 +1076,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/extension/sigv4authext
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.58.0 h1:n/vVF8cJVkAY7hgvEbUSyFMMek/gZ/I6FeswFLaGXPs=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.58.0 h1:/MUjXRmZp29tfAznIRnUswyBnSIcxF2F7Lhibi/3Ew8=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.58.0/go.mod h1:se3IqyShxI0ktuzJDFhShD9+bd/4Q3e/vNcCPlBTEGo=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal v0.58.0 h1:3011Ty31ul73iHKdAOcmWGhyeYd2e8k6F8QXbGl7GM0=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal v0.58.0/go.mod h1:sP9zpdfY6NO1RgH2+hfIv7wu6obfyaC9hivF+9KHMPg=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.58.0 h1:kzOTdxkYNeBe3QQTJfHmPfssh/cc6Cj2m0WnBLIowis=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.58.0/go.mod h1:WMGw+9m3podwRjyjYNLjGlrXDUrftmu3kYkOUbMOvEI=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.58.0 h1:XsU6PboiOtztwMEkqhALUZmYvpNgRzqsfhrcabg/XSc=
@@ -1086,6 +1088,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributespr
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.58.0/go.mod h1:iGCYmAgEUOTD5yNpoA/kgxcGte4G4TzuSm3ZFLQStto=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.58.0 h1:TjV0IVWvSwTLyoWtOcdXbfCUAkR2zqUgZvVezaBnMx4=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.58.0/go.mod h1:CmQGX+fWMSOjH7NrJlA7W9VN3lII+yZ5WGkLbEq916g=
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/groupbytraceprocessor v0.58.0 h1:mC5WIR6YqHgkDQbE+m8lOvS+ADboZAxeuowUOTiLNNs=
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/groupbytraceprocessor v0.58.0/go.mod h1:CD/9M0zHNIA3x3MA5iCvEqdC1w0u3Ib2yz9cMGbZaqA=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.58.0 h1:bDJumXoQfKRzU2dJ3JrF0n/k/dLc/D/kAv3OiQ/7zGI=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.58.0/go.mod h1:laStFwwitrdnq/wgk/h5QXhbxHmh6R35nymclGs87s8=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.58.0 h1:rsj7BCMz6q5LE++fdfe9y3T4GXNxX7pr1SvJHNjP2IU=
