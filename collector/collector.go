@@ -17,9 +17,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"io/ioutil"
 	"os"
 
+	"github.com/open-telemetry/opentelemetry-lambda/collector/pkg/utility"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
@@ -47,12 +48,25 @@ type Collector struct {
 	stopped        bool
 }
 
+func DisplayConfig(file string) string {
+	data, err := ioutil.ReadFile(file)
+	if err != nil {
+		utility.LogError(err, "DisplayConfigError", "Failed reading data", utility.KeyValue{K: "Filename", V: file})
+		return ""
+	}
+
+	return string(data)
+}
+
 func getConfig() string {
 	val, ex := os.LookupEnv("OPENTELEMETRY_COLLECTOR_CONFIG_FILE")
 	if !ex {
 		return "/opt/collector-config/config.yaml"
 	}
-	log.Printf("Using config file at path %v", val)
+
+	// 👉 Prints your collector configuration
+	// logger.InfoString(DisplayConfig(val))
+
 	return val
 }
 
@@ -71,16 +85,18 @@ func NewCollector(factories component.Factories) *Collector {
 			Converters: []confmap.Converter{expandconverter.New()},
 		},
 	}
-	cfgProvider, err := service.NewConfigProvider(cfgSet)
 
+	cfgProvider, err := service.NewConfigProvider(cfgSet)
 	if err != nil {
-		log.Panicf("error on creating config provider: %v\n", err)
+		utility.LogError(err, "ConfigProviderError", "Failed on creating config provider", utility.KeyValue{K: "ConfigProviderSettings", V: cfgSet})
+		return nil
 	}
 
 	col := &Collector{
 		factories:      factories,
 		configProvider: cfgProvider,
 	}
+
 	return col
 }
 
@@ -93,7 +109,9 @@ func (c *Collector) Start(ctx context.Context) error {
 		},
 		ConfigProvider: c.configProvider,
 		Factories:      c.factories,
+		LoggingOptions: utility.NopCoreLogger(),
 	}
+
 	var err error
 	c.svc, err = service.New(params)
 	if err != nil {
@@ -136,5 +154,6 @@ func (c *Collector) Stop() error {
 		c.svc.Shutdown()
 	}
 	<-c.appDone
+
 	return nil
 }
