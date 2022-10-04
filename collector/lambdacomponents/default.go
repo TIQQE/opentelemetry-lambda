@@ -15,7 +15,6 @@
 package lambdacomponents
 
 import (
-	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/groupbytraceprocessor"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/loggingexporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
@@ -25,11 +24,15 @@ import (
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.uber.org/multierr"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/awsxrayexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusremotewriteexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/oauth2clientauthextension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/oidcauthextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/sigv4authextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/groupbytraceprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanprocessor"
@@ -41,16 +44,19 @@ func Components() (component.Factories, error) {
 	receivers, err := component.MakeReceiverFactoryMap(
 		otlpreceiver.NewFactory(),
 	)
+
 	if err != nil {
 		errs = append(errs, err)
 	}
 
 	exporters, err := component.MakeExporterFactoryMap(
-		loggingexporter.NewFactory(),
 		otlpexporter.NewFactory(),
+		loggingexporter.NewFactory(),
+		awsxrayexporter.NewFactory(),
 		otlphttpexporter.NewFactory(),
 		prometheusremotewriteexporter.NewFactory(),
 	)
+
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -65,14 +71,18 @@ func Components() (component.Factories, error) {
 		memorylimiterprocessor.NewFactory(),
 		probabilisticsamplerprocessor.NewFactory(),
 	)
+
 	if err != nil {
 		errs = append(errs, err)
 	}
 
 	extensions, err := component.MakeExtensionFactoryMap(
+		oidcauthextension.NewFactory(),
+		basicauthextension.NewFactory(),
 		sigv4authextension.NewFactory(),
 		oauth2clientauthextension.NewFactory(),
 	)
+
 	if err != nil {
 		errs = append(errs, err)
 	}
