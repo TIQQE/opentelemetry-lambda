@@ -163,21 +163,10 @@ func updateConfig() {
 	file := Config{}
 	var yamlFile []byte
 	var err error
-	if env == OtelTestEnv {
-		if enableGroupBatch == "true" {
-			yamlFile, err = ioutil.ReadFile("/opt/collector-config/" + clientName + "/test-config-with-group-batch.yaml")
-		} else {
-			yamlFile, err = ioutil.ReadFile("/opt/collector-config/" + clientName + "/test-config.yaml")
-		}
-	} else if env == OtelProdEnv {
-		if enableGroupBatch == "true" {
-			yamlFile, err = ioutil.ReadFile("/opt/collector-config/" + clientName + "/prod-config-with-group-batch.yaml")
-		} else {
-			yamlFile, err = ioutil.ReadFile("/opt/collector-config/" + clientName + "/prod-config.yaml")
-		}
+	if enableGroupBatch == "true" {
+		yamlFile, err = ioutil.ReadFile("/opt/collector-config/" + clientName + "/" + env + "/config-with-group-batch.yaml")
 	} else {
-		utility.LogError(nil, "updateConfigError", "wrong env")
-		return
+		yamlFile, err = ioutil.ReadFile("/opt/collector-config/" + clientName + "/" + env + "/config.yaml")
 	}
 
 	err = yaml.Unmarshal(yamlFile, &file)
