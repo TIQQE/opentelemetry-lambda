@@ -1,0 +1,3 @@
+[submodule "collector/client-otel-configs"]
+	path = collector/client-otel-configs
+	url = https://github.com/TIQQE/client-otel-configs.git
