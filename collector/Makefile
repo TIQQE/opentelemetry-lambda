@@ -24,7 +24,7 @@ build: clean
 package: build
 	@echo 👉 Package zip file for collector extension layer
 	mkdir -p $(BUILD_SPACE)/collector-config
-	cp -R client-otel-configs/* $(BUILD_SPACE)/collector-config
+	cp -R ../../configs/* $(BUILD_SPACE)/collector-config
 	cd $(BUILD_SPACE) && zip -r collector-extension.zip collector-config extensions
 
 publish-layer: package

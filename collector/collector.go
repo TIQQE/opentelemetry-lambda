@@ -134,11 +134,6 @@ type Collector struct {
 }
 
 func updateConfig() {
-	clientName, ex := os.LookupEnv("OTEL_CLIENT_NAME")
-	if !ex {
-		utility.LogError(nil, "updateConfigError", "require OTEL_CLIENT_NAME")
-		return
-	}
 	env, ex := os.LookupEnv("OTEL_ENV")
 	if !ex {
 		utility.LogError(nil, "updateConfigError", "require OTEL_ENV")
@@ -164,9 +159,9 @@ func updateConfig() {
 	var yamlFile []byte
 	var err error
 	if enableGroupBatch == "true" {
-		yamlFile, err = ioutil.ReadFile("/opt/collector-config/" + clientName + "/" + env + "/config-with-group-batch.yaml")
+		yamlFile, err = ioutil.ReadFile("/opt/collector-config/" + env + "/config-with-group-batch.yaml")
 	} else {
-		yamlFile, err = ioutil.ReadFile("/opt/collector-config/" + clientName + "/" + env + "/config.yaml")
+		yamlFile, err = ioutil.ReadFile("/opt/collector-config/" + env + "/config.yaml")
 	}
 
 	err = yaml.Unmarshal(yamlFile, &file)
