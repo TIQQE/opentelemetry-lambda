@@ -17,10 +17,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/tiqqe/go-logger"
-	"gopkg.in/yaml.v3"
 	"io/ioutil"
 	"os"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/open-telemetry/opentelemetry-lambda/collector/pkg/utility"
 	"go.opentelemetry.io/collector/component"
@@ -80,7 +80,7 @@ type Config struct {
 		} `yaml:"memory_limiter"`
 		GroupByTrace struct {
 			WaitDuration string `yaml:"wait_duration"`
-			NumTraces    string `yaml:"num_traces"`
+			NumTraces    int    `yaml:"num_traces"`
 		} `yaml:"groupbytrace,omitempty"`
 		Batch struct {
 			Timeout string `yaml:"timeout"`
@@ -202,8 +202,18 @@ func DisplayConfig(file string) string {
 }
 
 func getConfig() string {
-	logger.InfoString(DisplayConfig("/tmp/config.yaml"))
-	return "/tmp/config.yaml"
+	val, ex := os.LookupEnv("OPENTELEMETRY_COLLECTOR_CONFIG_FILE")
+	if !ex {
+		updateConfig()
+		// 👉 Prints your collector configuration
+		// logger.InfoString(DisplayConfig("/tmp/config.yaml"))
+
+		return "/tmp/config.yaml"
+	}
+
+	// 👉 Prints your collector configuration
+	// logger.InfoString(DisplayConfig(val))
+	return val
 }
 
 func NewCollector(factories component.Factories) *Collector {
@@ -214,7 +224,6 @@ func NewCollector(factories component.Factories) *Collector {
 		mapProvider[provider.Scheme()] = provider
 	}
 
-	updateConfig()
 	cfgSet := service.ConfigProviderSettings{
 		ResolverSettings: confmap.ResolverSettings{
 			URIs:       []string{getConfig()},
