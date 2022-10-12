@@ -30,7 +30,10 @@ package: build
 	if [ -a $(certs-path)/agent-key.pem ]; then echo "Check file agent-key.pem";else echo "agent-key.pem is not exist";exit 1; fi;
 	if [ -a $(certs-path)/config.yaml ]; then echo "Check file config.yaml";else echo "config.yaml is not exist";exit 1; fi;
 	mkdir -p $(BUILD_SPACE)/collector-config
-	cp -R $(certs-path)/* $(BUILD_SPACE)/collector-config
+	cp $(certs-path)/ca.pem $(BUILD_SPACE)/collector-config
+	cp $(certs-path)/agent.pem $(BUILD_SPACE)/collector-config
+	cp $(certs-path)/agent-key.pem $(BUILD_SPACE)/collector-config
+	cp $(certs-path)/config.yaml $(BUILD_SPACE)/collector-config
 	cd $(BUILD_SPACE) && zip -r collector-extension.zip collector-config extensions
 
 publish-layer: package
