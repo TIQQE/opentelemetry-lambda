@@ -23,8 +23,14 @@ build: clean
 
 package: build
 	@echo 👉 Package zip file for collector extension layer
+	if [ ! $(certs-path) ]; then echo "Please input certs-path";exit 1; fi
+	if [ ! -d $(certs-path) ]; then echo "This folder is not exist: $(certs-path) ";exit 1; fi
+	if [ -a $(certs-path)/ca.pem ]; then echo "Check file ca.pem";else echo "ca.pem is not exist";exit 1; fi;
+	if [ -a $(certs-path)/agent.pem ]; then echo "Check file agent.pem";else echo "agent.pem is not exist";exit 1; fi;
+	if [ -a $(certs-path)/agent-key.pem ]; then echo "Check file agent-key.pem";else echo "agent-key.pem is not exist";exit 1; fi;
+	if [ -a $(certs-path)/config.yaml ]; then echo "Check file config.yaml";else echo "config.yaml is not exist";exit 1; fi;
 	mkdir -p $(BUILD_SPACE)/collector-config
-	cp -R ../../configs/* $(BUILD_SPACE)/collector-config
+	cp -R $(certs-path)/* $(BUILD_SPACE)/collector-config
 	cd $(BUILD_SPACE) && zip -r collector-extension.zip collector-config extensions
 
 publish-layer: package

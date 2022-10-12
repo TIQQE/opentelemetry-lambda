@@ -134,35 +134,11 @@ type Collector struct {
 }
 
 func updateConfig() {
-	env, ex := os.LookupEnv("OTEL_ENV")
-	if !ex {
-		utility.LogError(nil, "updateConfigError", "require OTEL_ENV")
-		return
-	}
-	clientId, ex := os.LookupEnv("OTEL_CLIENT_ID")
-	if !ex {
-		utility.LogError(nil, "updateConfigError", "require OTEL_CLIENT_ID")
-		return
-	}
-	clientSecret, ex := os.LookupEnv("OTEL_CLIENT_SECRET")
-	if !ex {
-		utility.LogError(nil, "updateConfigError", "require OTEL_CLIENT_SECRET")
-		return
-	}
-	enableGroupBatch, ex := os.LookupEnv("OTEL_ENABLE_GROUP_BATCH")
-	if !ex {
-		utility.LogError(nil, "updateConfigError", "require OTEL_ENABLE_GROUP_BATCH")
-		return
-	}
 
 	file := Config{}
 	var yamlFile []byte
 	var err error
-	if enableGroupBatch == "true" {
-		yamlFile, err = ioutil.ReadFile("/opt/collector-config/" + env + "/config-with-group-batch.yaml")
-	} else {
-		yamlFile, err = ioutil.ReadFile("/opt/collector-config/" + env + "/config.yaml")
-	}
+	yamlFile, err = ioutil.ReadFile("/opt/collector-config/config.yaml")
 
 	err = yaml.Unmarshal(yamlFile, &file)
 	if err != nil {
@@ -170,8 +146,9 @@ func updateConfig() {
 		return
 	}
 
-	file.Extensions.Oauth2client.ClientId = clientId
-	file.Extensions.Oauth2client.ClientSecret = clientSecret
+	//not thing want to update so far in here
+	//
+	//end update
 
 	d, err := yaml.Marshal(&file)
 	if err != nil {
