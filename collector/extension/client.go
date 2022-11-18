@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-
-	"github.com/open-telemetry/opentelemetry-lambda/collector/pkg/utility"
 )
 
 // RegisterResponse is the body of the response for /register
@@ -61,9 +59,7 @@ const (
 
 	// Shutdown is a shutdown event for the environment
 	Shutdown EventType = "SHUTDOWN"
-)
 
-const (
 	extensionNameHeader      = "Lambda-Extension-Name"
 	extensionIdentiferHeader = "Lambda-Extension-Identifier"
 	extensionErrorType       = "Lambda-Extension-Function-Error-Type"
@@ -80,15 +76,9 @@ type Client struct {
 func NewClient(awsLambdaRuntimeAPI string) *Client {
 	baseURL := fmt.Sprintf("http://%s/2020-01-01/extension", awsLambdaRuntimeAPI)
 
-	HttpClient, err := GetHttpClient()
-	if err != nil {
-		utility.LogError(err, "HTTPClientError", "Failed to GetHttpClient")
-		return nil
-	}
-
 	return &Client{
 		baseURL:    baseURL,
-		httpClient: HttpClient,
+		httpClient: &http.Client{},
 	}
 }
 
@@ -97,33 +87,30 @@ func (e *Client) Register(ctx context.Context, filename string) (*RegisterRespon
 	const action = "/register"
 	url := e.baseURL + action
 
-	reqBody, err := json.Marshal(map[string]interface{}{
+	requestBody, err := json.Marshal(map[string]interface{}{
 		"events": []EventType{Invoke, Shutdown},
 	})
 
 	if err != nil {
-		utility.LogError(err, "JSONError", "Failed to marshal events")
 		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(reqBody))
+	request, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(requestBody))
 	if err != nil {
-		utility.LogError(err, "NewRequestError", "Failed to create an HTTP new request", utility.KeyValue{K: "URL", V: url}, utility.KeyValue{K: "ReqBody", V: string(reqBody)})
 		return nil, err
 	}
 
-	req.Header.Set(extensionNameHeader, filename)
+	request.Header.Set(extensionNameHeader, filename)
 
-	var registerResp RegisterResponse
-	resp, err := e.doRequest(req, &registerResp)
+	var registerResponse RegisterResponse
+	response, err := e.doRequest(request, &registerResponse)
 	if err != nil {
-		utility.LogError(err, "DoRequestError", "Failed to send an HTTP request", utility.KeyValue{K: "RegisterResponse", V: registerResp})
 		return nil, err
 	}
 
-	e.extensionID = resp.Header.Get(extensionIdentiferHeader)
+	e.extensionID = response.Header.Get(extensionIdentiferHeader)
 
-	return &registerResp, nil
+	return &registerResponse, nil
 }
 
 // NextEvent blocks while long polling for the next lambda invoke or shutdown.
@@ -131,43 +118,91 @@ func (e *Client) NextEvent(ctx context.Context) (*NextEventResponse, error) {
 	const action = "/event/next"
 	url := e.baseURL + action
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	request, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		utility.LogError(err, "NewRequestError", "Failed to create an HTTP new request", utility.KeyValue{K: "URL", V: url})
 		return nil, err
 	}
 
-	req.Header.Set(extensionIdentiferHeader, e.extensionID)
+	request.Header.Set(extensionIdentiferHeader, e.extensionID)
 
-	var nextEventResp NextEventResponse
-	if _, err := e.doRequest(req, &nextEventResp); err != nil {
-		utility.LogError(err, "DoRequestError", "Failed to send an HTTP request", utility.KeyValue{K: "NextEventResponse", V: nextEventResp})
+	var nextEventResponse NextEventResponse
+	_, err = e.doRequest(request, &nextEventResponse)
+	if err != nil {
 		return nil, err
 	}
 
-	return &nextEventResp, nil
+	return &nextEventResponse, nil
 }
 
+// InitError reports an initialization error to the platform.
+// Call it when you registered but failed to initialize.
+func (e *Client) InitError(ctx context.Context, errorType string) (*StatusResponse, error) {
+	const action = "/init/error"
+	url := e.baseURL + action
+
+	request, err := http.NewRequestWithContext(ctx, "POST", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	request.Header.Set(extensionIdentiferHeader, e.extensionID)
+	request.Header.Set(extensionErrorType, errorType)
+
+	var statusResponse StatusResponse
+	_, err = e.doRequest(request, &statusResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	return &statusResponse, nil
+}
+
+// ExitError reports an error to the platform before exiting.
+// Call it when you encounter an unexpected failure.
+func (e *Client) ExitError(ctx context.Context, errorType string) (*StatusResponse, error) {
+	const action = "/exit/error"
+	url := e.baseURL + action
+
+	request, err := http.NewRequestWithContext(ctx, "POST", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	request.Header.Set(extensionIdentiferHeader, e.extensionID)
+	request.Header.Set(extensionErrorType, errorType)
+
+	var statusResponse StatusResponse
+	_, err = e.doRequest(request, &statusResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	return &statusResponse, nil
+}
+
+// doRequest sends an HTTP request and returns an HTTP response.
 func (e *Client) doRequest(req *http.Request, out interface{}) (*http.Response, error) {
-	resp, err := e.httpClient.Do(req)
+	response, err := e.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 
-	if resp.StatusCode != 200 {
-		err := fmt.Errorf("request failed with status %s", resp.Status)
+	if response.StatusCode != 200 {
+		err := fmt.Errorf("request failed with status %s", response.Status)
 		return nil, err
 	}
-	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	defer response.Body.Close()
+
+	body, err := ioutil.ReadAll(response.Body)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = json.Unmarshal(body, out); err != nil {
-		return resp, err
+	err = json.Unmarshal(body, out)
+	if err != nil {
+		return response, err
 	}
 
-	return resp, nil
+	return response, nil
 }

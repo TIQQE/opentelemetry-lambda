@@ -20,29 +20,43 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/open-telemetry/opentelemetry-lambda/collector/extension"
+	"github.com/open-telemetry/opentelemetry-lambda/collector/internal/extension/lambdaextension"
 	"github.com/open-telemetry/opentelemetry-lambda/collector/lambdacomponents"
 	"github.com/open-telemetry/opentelemetry-lambda/collector/pkg/utility"
 )
 
 var (
+	sp              = newSpanProcessor()
 	extensionName   = filepath.Base(os.Args[0]) // extension name has to match the filename
 	extensionClient = extension.NewClient(os.Getenv("AWS_LAMBDA_RUNTIME_API"))
 )
 
 func main() {
+	// Setup default lambda components
 	factories, err := lambdacomponents.Components()
 	if err != nil {
-		utility.LogError(err, "LambdaComponentsError", "Failed to make factories")
+		utility.LogError(err, "LambdaComponents", "Failed to make factories")
 		return
 	}
 
-	collector := NewCollector(factories)
+	// Add Lambda Extension
+	lambdaFactory := lambdaextension.NewFactory(sp)
+	factories.Extensions[lambdaFactory.Type()] = lambdaFactory
+
+	collector, err := NewCollector(factories)
+	if err != nil {
+		utility.LogError(err, "Collector", "Failed to initialize new collector")
+		return
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
-	if err := collector.Start(ctx); err != nil {
-		utility.LogError(err, "CollectorError", "Failed to start the extension")
+	err = collector.Start(ctx)
+	if err != nil {
+		utility.LogError(err, "Collector", "Failed to start the lambda layer collector extension")
 		return
 	}
 
@@ -55,7 +69,7 @@ func main() {
 
 	_, err = extensionClient.Register(ctx, extensionName)
 	if err != nil {
-		utility.LogError(err, "RegisterExtensionError", "Failed to register extension")
+		utility.LogError(err, "Register", "Failed to register extension")
 		return
 	}
 
@@ -68,17 +82,27 @@ func processEvents(ctx context.Context, collector *Collector) {
 		select {
 		case <-ctx.Done():
 			return
+
 		default:
-			res, err := extensionClient.NextEvent(ctx)
+			response, err := extensionClient.NextEvent(ctx)
 			if err != nil {
-				utility.LogError(err, "LambdaCollector", "Failed to process event")
+				utility.LogError(err, "processEvents", "Failed to process event")
 				return
 			}
 
 			// Exit if we receive a SHUTDOWN event
-			if res.EventType == extension.Shutdown {
+			if response.EventType == extension.Shutdown {
 				collector.Stop() // TODO: handle return values
 				return
+			}
+
+			select {
+			case <-sp.waitCh:
+			case <-time.After(1000 * time.Millisecond):
+			}
+
+			for count := sp.activeSpanCount(); count > 0; count = sp.activeSpanCount() {
+				time.Sleep(1 * time.Millisecond)
 			}
 		}
 	}

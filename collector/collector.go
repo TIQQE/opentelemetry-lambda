@@ -16,12 +16,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 
-	"gopkg.in/yaml.v3"
-
+	"github.com/open-telemetry/opentelemetry-lambda/collector/internal/confmap/converter/extensionconverter"
 	"github.com/open-telemetry/opentelemetry-lambda/collector/pkg/utility"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
@@ -30,6 +30,7 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/service"
+	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -38,11 +39,6 @@ var (
 
 	// GitHash variable will be replaced at link time after `make` has been run.
 	GitHash = "<NOT PROPERLY GENERATED>"
-)
-
-const (
-	OtelTestEnv = "test"
-	OtelProdEnv = "prod"
 )
 
 type Config struct {
@@ -77,7 +73,7 @@ type Config struct {
 			CheckInterval        string `yaml:"check_interval"`
 			LimitPercentage      int    `yaml:"limit_percentage"`
 			SpikeLimitPercentage int    `yaml:"spike_limit_percentage"`
-		} `yaml:"memory_limiter"`
+		} `yaml:"memory_limiter,omitempty"`
 		GroupByTrace struct {
 			WaitDuration string `yaml:"wait_duration"`
 			NumTraces    int    `yaml:"num_traces"`
@@ -85,16 +81,19 @@ type Config struct {
 		Batch struct {
 			Timeout string `yaml:"timeout"`
 		} `yaml:"batch,omitempty"`
-	} `yaml:"processors"`
+	} `yaml:"processors,omitempty"`
 
 	Exporters struct {
 		Otlp struct {
-			Endpoint       string `yaml:"endpoint"`
+			Endpoint     string `yaml:"endpoint"`
+			SendingQueue struct {
+				Enabled bool `yaml:"enabled"`
+			} `yaml:"sending_queue"`
 			RetryOnFailure struct {
 				Enabled         bool   `yaml:"enabled"`
 				InitialInterval string `yaml:"initial_interval"`
-			} `yaml:"retry_on_failure"`
-			Timeout string `yaml:"timeout"`
+			} `yaml:"retry_on_failure,omitempty"`
+			Timeout string `yaml:"timeout,omitempty"`
 			Tls     struct {
 				CaFile   string `yaml:"ca_file"`
 				CertFile string `yaml:"cert_file"`
@@ -111,12 +110,12 @@ type Config struct {
 		Pipelines  struct {
 			Traces struct {
 				Receivers  []string `yaml:"receivers"`
-				Processors []string `yaml:"processors"`
+				Processors []string `yaml:"processors,omitempty"`
 				Exporters  []string `yaml:"exporters"`
 			} `yaml:"traces"`
 			Metrics struct {
 				Receivers  []string `yaml:"receivers"`
-				Processors []string `yaml:"processors"`
+				Processors []string `yaml:"processors,omitempty"`
 				Exporters  []string `yaml:"exporters"`
 			} `yaml:"metrics"`
 		} `yaml:"pipelines"`
@@ -133,32 +132,35 @@ type Collector struct {
 	stopped        bool
 }
 
+// updateConfig use custom configuration
 func updateConfig() {
-
 	file := Config{}
-	var yamlFile []byte
-	var err error
+	var (
+		err      error
+		yamlFile []byte
+	)
+
 	yamlFile, err = ioutil.ReadFile("/opt/collector-config/config.yaml")
+	if err != nil {
+		utility.LogError(err, "updateConfig", "failed to read file")
+		return
+	}
 
 	err = yaml.Unmarshal(yamlFile, &file)
 	if err != nil {
-		utility.LogError(err, "updateConfigError", "failed to unmarshal config file")
+		utility.LogError(err, "updateConfig", "failed to unmarshal config file")
 		return
 	}
 
-	//not thing want to update so far in here
-	//
-	//end update
-
-	d, err := yaml.Marshal(&file)
+	data, err := yaml.Marshal(&file)
 	if err != nil {
-		utility.LogError(err, "updateConfigError", "failed to marshal config file")
+		utility.LogError(err, "updateConfig", "failed to marshal config file")
 		return
 	}
 
-	err = ioutil.WriteFile("/tmp/config.yaml", d, 0755)
+	err = ioutil.WriteFile("/tmp/config.yaml", data, 0755)
 	if err != nil {
-		utility.LogError(err, "updateConfigError", "failed to write config file")
+		utility.LogError(err, "updateConfig", "failed to write config file")
 		return
 	}
 }
@@ -173,6 +175,9 @@ func DisplayConfig(file string) string {
 	return string(data)
 }
 
+// getConfig loading YAML config from environment variable
+// if it exists. If it does not exist, it will load the
+// custom YAML config.
 func getConfig() string {
 	val, ex := os.LookupEnv("OPENTELEMETRY_COLLECTOR_CONFIG_FILE")
 	if !ex {
@@ -188,7 +193,8 @@ func getConfig() string {
 	return val
 }
 
-func NewCollector(factories component.Factories) *Collector {
+func NewCollector(factories component.Factories) (*Collector, error) {
+	// Generate the MapProviders for the Config Provider Settings
 	providers := []confmap.Provider{fileprovider.New(), envprovider.New(), yamlprovider.New()}
 	mapProvider := make(map[string]confmap.Provider, len(providers))
 
@@ -196,28 +202,31 @@ func NewCollector(factories component.Factories) *Collector {
 		mapProvider[provider.Scheme()] = provider
 	}
 
-	cfgSet := service.ConfigProviderSettings{
+	// Create Config Provider Settings
+	settings := service.ConfigProviderSettings{
 		ResolverSettings: confmap.ResolverSettings{
-			URIs:       []string{getConfig()},
 			Providers:  mapProvider,
-			Converters: []confmap.Converter{expandconverter.New()},
+			URIs:       []string{getConfig()},
+			Converters: []confmap.Converter{expandconverter.New(), extensionconverter.New(map[string]interface{}{"lambda": map[string]interface{}{}})},
 		},
 	}
 
-	cfgProvider, err := service.NewConfigProvider(cfgSet)
+	// Get new config provider
+	cfgProvider, err := service.NewConfigProvider(settings)
 	if err != nil {
-		utility.LogError(err, "ConfigProviderError", "Failed on creating config provider", utility.KeyValue{K: "ConfigProviderSettings", V: cfgSet})
-		return nil
+		err := errors.New("failed on creating config provider")
+		return nil, err
 	}
 
-	col := &Collector{
+	collector := &Collector{
 		factories:      factories,
 		configProvider: cfgProvider,
 	}
 
-	return col
+	return collector, nil
 }
 
+// Start starts the Lambda Layer Collector
 func (c *Collector) Start(ctx context.Context) error {
 	params := service.CollectorSettings{
 		BuildInfo: component.BuildInfo{
@@ -240,6 +249,7 @@ func (c *Collector) Start(ctx context.Context) error {
 
 	go func() {
 		defer close(c.appDone)
+
 		appErr := c.svc.Run(ctx)
 		if appErr != nil {
 			err = appErr
@@ -258,19 +268,23 @@ func (c *Collector) Start(ctx context.Context) error {
 		switch state {
 		case service.Starting:
 			// NoOp
+
 		case service.Running:
 			return nil
+
 		default:
 			err = fmt.Errorf("unable to start, otelcol state is %d", state)
 		}
 	}
 }
 
+// Stop shutsdown the Lambda Layer Collector
 func (c *Collector) Stop() error {
 	if !c.stopped {
 		c.stopped = true
 		c.svc.Shutdown()
 	}
+
 	<-c.appDone
 
 	return nil

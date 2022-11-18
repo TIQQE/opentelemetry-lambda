@@ -15,8 +15,11 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/tiqqe/go-logger v1.2.0
 	go.opentelemetry.io/collector v0.61.0
+	go.opentelemetry.io/otel/sdk v1.10.0
+	go.opentelemetry.io/otel/trace v1.10.0
 	go.uber.org/zap v1.23.0
 	golang.org/x/net v0.0.0-20220909164309-bea034e7d591
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -117,9 +120,7 @@ require (
 	go.opentelemetry.io/otel v1.10.0 // indirect
 	go.opentelemetry.io/otel/exporters/prometheus v0.32.1 // indirect
 	go.opentelemetry.io/otel/metric v0.32.1 // indirect
-	go.opentelemetry.io/otel/sdk v1.10.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v0.32.1 // indirect
-	go.opentelemetry.io/otel/trace v1.10.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/multierr v1.8.0 // indirect
 	golang.org/x/crypto v0.0.0-20220507011949-2cf3adece122 // indirect
@@ -132,5 +133,4 @@ require (
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/square/go-jose.v2 v2.5.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
