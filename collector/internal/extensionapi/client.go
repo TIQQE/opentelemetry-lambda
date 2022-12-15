@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package extension
+package extensionapi
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 )
 
@@ -28,6 +28,7 @@ type RegisterResponse struct {
 	FunctionName    string `json:"functionName"`
 	FunctionVersion string `json:"functionVersion"`
 	Handler         string `json:"handler"`
+	ExtensionID     string
 }
 
 // NextEventResponse is the response for /event/next
@@ -54,27 +55,31 @@ type StatusResponse struct {
 type EventType string
 
 const (
-	// Invoke is a lambda invoke
+	SchemaVersion20200101 = "2020-01-01"
+	SchemaVersionLatest   = SchemaVersion20200101
+
+	// Invoke is a lambda INVOKE event
 	Invoke EventType = "INVOKE"
 
-	// Shutdown is a shutdown event for the environment
+	// Shutdown is a SHUTDOWN event for the environment
 	Shutdown EventType = "SHUTDOWN"
 
-	extensionNameHeader      = "Lambda-Extension-Name"
-	extensionIdentiferHeader = "Lambda-Extension-Identifier"
-	extensionErrorType       = "Lambda-Extension-Function-Error-Type"
+	ExtensionNameHeader      = "Lambda-Extension-Name"
+	ExtensionIdentiferHeader = "Lambda-Extension-Identifier"
+	ExtensionErrorType       = "Lambda-Extension-Function-Error-Type"
 )
 
 // Client is a simple client for the Lambda Extensions API.
 type Client struct {
 	baseURL     string
-	httpClient  *http.Client
 	extensionID string
+	httpClient  *http.Client
 }
 
 // NewClient returns a Lambda Extensions API client.
+//  POST http://${AWS_RUNTIME_API}/2020-01-01/extension
 func NewClient(awsLambdaRuntimeAPI string) *Client {
-	baseURL := fmt.Sprintf("http://%s/2020-01-01/extension", awsLambdaRuntimeAPI)
+	baseURL := fmt.Sprintf("http://%s/%s/extension", awsLambdaRuntimeAPI, SchemaVersionLatest)
 
 	return &Client{
 		baseURL:    baseURL,
@@ -83,7 +88,9 @@ func NewClient(awsLambdaRuntimeAPI string) *Client {
 }
 
 // Register will register the extension with the Extensions API.
-func (e *Client) Register(ctx context.Context, filename string) (*RegisterResponse, error) {
+// Each API call must include the Lambda-Extension-Name header.
+//  Reference: https://github.com/awsdocs/aws-lambda-developer-guide/blob/main/doc_source/telemetry-api.md#telemetry-api-registration
+func (e *Client) Register(ctx context.Context, extensionName string) (*RegisterResponse, error) {
 	const action = "/register"
 	url := e.baseURL + action
 
@@ -95,12 +102,12 @@ func (e *Client) Register(ctx context.Context, filename string) (*RegisterRespon
 		return nil, err
 	}
 
-	request, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(requestBody))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(requestBody))
 	if err != nil {
 		return nil, err
 	}
 
-	request.Header.Set(extensionNameHeader, filename)
+	request.Header.Set(ExtensionNameHeader, extensionName)
 
 	var registerResponse RegisterResponse
 	response, err := e.doRequest(request, &registerResponse)
@@ -108,7 +115,8 @@ func (e *Client) Register(ctx context.Context, filename string) (*RegisterRespon
 		return nil, err
 	}
 
-	e.extensionID = response.Header.Get(extensionIdentiferHeader)
+	e.extensionID = response.Header.Get(ExtensionIdentiferHeader)
+	registerResponse.ExtensionID = e.extensionID
 
 	return &registerResponse, nil
 }
@@ -118,12 +126,12 @@ func (e *Client) NextEvent(ctx context.Context) (*NextEventResponse, error) {
 	const action = "/event/next"
 	url := e.baseURL + action
 
-	request, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	request.Header.Set(extensionIdentiferHeader, e.extensionID)
+	request.Header.Set(ExtensionIdentiferHeader, e.extensionID)
 
 	var nextEventResponse NextEventResponse
 	_, err = e.doRequest(request, &nextEventResponse)
@@ -140,13 +148,13 @@ func (e *Client) InitError(ctx context.Context, errorType string) (*StatusRespon
 	const action = "/init/error"
 	url := e.baseURL + action
 
-	request, err := http.NewRequestWithContext(ctx, "POST", url, nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	request.Header.Set(extensionIdentiferHeader, e.extensionID)
-	request.Header.Set(extensionErrorType, errorType)
+	request.Header.Set(ExtensionErrorType, errorType)
+	request.Header.Set(ExtensionIdentiferHeader, e.extensionID)
 
 	var statusResponse StatusResponse
 	_, err = e.doRequest(request, &statusResponse)
@@ -163,13 +171,13 @@ func (e *Client) ExitError(ctx context.Context, errorType string) (*StatusRespon
 	const action = "/exit/error"
 	url := e.baseURL + action
 
-	request, err := http.NewRequestWithContext(ctx, "POST", url, nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	request.Header.Set(extensionIdentiferHeader, e.extensionID)
-	request.Header.Set(extensionErrorType, errorType)
+	request.Header.Set(ExtensionErrorType, errorType)
+	request.Header.Set(ExtensionIdentiferHeader, e.extensionID)
 
 	var statusResponse StatusResponse
 	_, err = e.doRequest(request, &statusResponse)
@@ -181,8 +189,8 @@ func (e *Client) ExitError(ctx context.Context, errorType string) (*StatusRespon
 }
 
 // doRequest sends an HTTP request and returns an HTTP response.
-func (e *Client) doRequest(req *http.Request, out interface{}) (*http.Response, error) {
-	response, err := e.httpClient.Do(req)
+func (e *Client) doRequest(request *http.Request, out interface{}) (*http.Response, error) {
+	response, err := e.httpClient.Do(request)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +202,7 @@ func (e *Client) doRequest(req *http.Request, out interface{}) (*http.Response, 
 
 	defer response.Body.Close()
 
-	body, err := ioutil.ReadAll(response.Body)
+	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, err
 	}

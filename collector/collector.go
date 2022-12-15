@@ -21,13 +21,15 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/open-telemetry/opentelemetry-lambda/collector/internal/confmap/converter/extensionconverter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/confmap/provider/s3provider"
+	"github.com/open-telemetry/opentelemetry-lambda/collector/internal/confmap/converter/disablequeuedretryconverter"
 	"github.com/open-telemetry/opentelemetry-lambda/collector/pkg/utility"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
+	"go.opentelemetry.io/collector/confmap/provider/httpprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/service"
 	"gopkg.in/yaml.v3"
@@ -85,10 +87,8 @@ type Config struct {
 
 	Exporters struct {
 		Otlp struct {
-			Endpoint     string `yaml:"endpoint"`
-			SendingQueue struct {
-				Enabled bool `yaml:"enabled"`
-			} `yaml:"sending_queue"`
+			Compression    string `yaml:"compression,omitempty"`
+			Endpoint       string `yaml:"endpoint"`
 			RetryOnFailure struct {
 				Enabled         bool   `yaml:"enabled"`
 				InitialInterval string `yaml:"initial_interval"`
@@ -195,7 +195,7 @@ func getConfig() string {
 
 func NewCollector(factories component.Factories) (*Collector, error) {
 	// Generate the MapProviders for the Config Provider Settings
-	providers := []confmap.Provider{fileprovider.New(), envprovider.New(), yamlprovider.New()}
+	providers := []confmap.Provider{fileprovider.New(), envprovider.New(), yamlprovider.New(), httpprovider.New(), s3provider.New()}
 	mapProvider := make(map[string]confmap.Provider, len(providers))
 
 	for _, provider := range providers {
@@ -207,7 +207,7 @@ func NewCollector(factories component.Factories) (*Collector, error) {
 		ResolverSettings: confmap.ResolverSettings{
 			Providers:  mapProvider,
 			URIs:       []string{getConfig()},
-			Converters: []confmap.Converter{expandconverter.New(), extensionconverter.New(map[string]interface{}{"lambda": map[string]interface{}{}})},
+			Converters: []confmap.Converter{expandconverter.New(), disablequeuedretryconverter.New()},
 		},
 	}
 
@@ -230,13 +230,13 @@ func NewCollector(factories component.Factories) (*Collector, error) {
 func (c *Collector) Start(ctx context.Context) error {
 	params := service.CollectorSettings{
 		BuildInfo: component.BuildInfo{
-			Command:     "otelcol",
+			Command:     "otelcol-lambda",
 			Description: "Lambda Collector",
 			Version:     Version,
 		},
 		ConfigProvider: c.configProvider,
 		Factories:      c.factories,
-		LoggingOptions: utility.NopCoreLogger(),
+		LoggingOptions: utility.CustomLoggerOptions(),
 	}
 
 	var err error
@@ -266,10 +266,10 @@ func (c *Collector) Start(ctx context.Context) error {
 		}
 
 		switch state {
-		case service.Starting:
+		case service.StateStarting:
 			// NoOp
 
-		case service.Running:
+		case service.StateRunning:
 			return nil
 
 		default:
