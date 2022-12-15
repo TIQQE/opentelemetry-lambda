@@ -1,7 +1,7 @@
 package utility
 
 import (
-	"io"
+	"os"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -24,7 +24,7 @@ func CustomLoggerOptions() []zap.Option {
 		return lvl >= zapcore.WarnLevel
 	})
 
-	core := zapcore.NewCore(zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()), zapcore.AddSync(io.Discard), highPriority)
+	core := zapcore.NewCore(zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()), os.Stdout, highPriority)
 	highPriorityLogger := zap.WrapCore(func(zapcore.Core) zapcore.Core { return core })
 
 	return []zap.Option{
